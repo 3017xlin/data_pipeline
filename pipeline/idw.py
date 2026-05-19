@@ -23,12 +23,16 @@ def idw_query(
     k: int,
     power: float = 2.0,
     eps: float = 1e-8,
+    workers: int = 1,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Returns:
         interpolated: (Q, D) — IDW result; D inferred from source_values
         neighbor_idx: (Q, k) — indices of k nearest neighbors
         neighbor_dist: (Q, k) — distances to k nearest neighbors
+
+    Default `workers=1` because callers are typically already inside an
+    mp.Pool worker; setting -1 there causes thread oversubscription.
     """
     if k < 1:
         raise ValueError(f"k must be >= 1, got {k}")
@@ -39,7 +43,7 @@ def idw_query(
     else:
         squeeze = False
 
-    dist, idx = tree.query(query_points, k=k, workers=-1)
+    dist, idx = tree.query(query_points, k=k, workers=workers)
     if k == 1:
         dist = dist[:, None]
         idx = idx[:, None]

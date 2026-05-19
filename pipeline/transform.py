@@ -414,10 +414,12 @@ def _pass2_one(npz_path_str: str) -> tuple[str, str, str | None]:
         sdf = SDFComputer(d["stl_vertices"], d["stl_faces"])
         stl_face_normals = sdf.face_normals  # (F, 3) float32
 
-        # 2m shell points (only side walls, with SDF + ground filters)
-        shell_pts, shell_face_idx, shell_sdf = generate_shell_points(
-            face_centers=d["stl_centers"],
-            face_normals=stl_face_normals,
+        # 2m shell points — deviated from the CFD wall mesh centers
+        # (the points carrying real CFD ground-truth values), NOT from
+        # STL face centers. Side-wall + SDF + ground filters applied.
+        shell_pts, shell_base_idx, shell_sdf = generate_shell_points(
+            base_points=d["surface_pos"],
+            base_normals=d["surface_normals"],
             offset_m=SHELL_OFFSET_M,
             sdf=sdf,
         )

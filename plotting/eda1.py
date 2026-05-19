@@ -152,11 +152,10 @@ def _process_single(npz_path_str: str) -> dict:
 
         # Shell analysis (Open3D-based SDF)
         sdf = SDFComputer(stl_vertices, stl_faces)
-        face_normals = sdf.face_normals
 
         tree = build_tree(volume_pos)
         surf_tree = build_tree(surface_pos)
-        _, surf_neighbour = surf_tree.query(surface_pos, k=5, workers=-1)
+        _, surf_neighbour = surf_tree.query(surface_pos, k=5, workers=1)
 
         for offset in OFFSETS_M:
             tag = f"{offset}m"
@@ -164,9 +163,10 @@ def _process_single(npz_path_str: str) -> dict:
             # Scale the SDF filter with the offset so a 0.5m shell isn't
             # nuked by the default 1m threshold meant for 2m offsets.
             min_sdf = max(0.3, 0.5 * offset)
-            shell_pts, _face_idx, shell_sdf = generate_shell_points(
-                face_centers=stl_centers,
-                face_normals=face_normals,
+            # Shells are deviated from CFD wall mesh centers, NOT STL.
+            shell_pts, _base_idx, shell_sdf = generate_shell_points(
+                base_points=surface_pos,
+                base_normals=surface_normals,
                 offset_m=offset,
                 sdf=sdf,
                 min_sdf_m=min_sdf,

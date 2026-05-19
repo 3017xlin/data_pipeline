@@ -26,17 +26,29 @@ from multiprocessing import cpu_count
 from pathlib import Path
 
 
+def _default_workers() -> int:
+    """Respect SLURM_CPUS_PER_TASK on HPC, then TOTAL_CORES, then cpu_count()."""
+    for var in ("SLURM_CPUS_PER_TASK", "TOTAL_CORES"):
+        v = os.environ.get(var)
+        if v and v.isdigit():
+            return int(v)
+    return cpu_count()
+
+
 def _parse() -> argparse.Namespace:
-    p = argparse.ArgumentParser()
-    p.add_argument("--data_dir", required=True, type=Path,
-                   help="Root containing NPZ files (recursively scanned).")
-    p.add_argument("--out_dir", required=True, type=Path,
-                   help="Output directory for PT files, plots, and stats JSON.")
-    p.add_argument("--workers", type=int,
-                   default=int(os.environ.get("TOTAL_CORES", cpu_count())))
-    p.add_argument("--do", nargs="+", default=["plot", "pt"],
+    p = argparse.ArgumentParser(
+        description="HDB 3D wind data pipeline (NPZ → PT, plus optional EDA plots).",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    p.add_argument("--data_dir", type=Path, default=Path("."),
+                   help="Root scanned recursively for NPZ files.")
+    p.add_argument("--out_dir", type=Path, default=Path("./outputs"),
+                   help="Output directory: PT files, plots, and stats JSON.")
+    p.add_argument("--workers", type=int, default=_default_workers(),
+                   help="Parallel workers. Honours SLURM_CPUS_PER_TASK by default.")
+    p.add_argument("--do", nargs="+", default=["pt"],
                    choices=["plot", "pt", "eda1", "eda2"],
-                   help="Subtasks to run. 'plot' = eda1 + eda2.")
+                   help="Subtasks. 'plot' = eda1 + eda2. Pass multiple to chain.")
     p.add_argument("--skip_existing", action="store_true",
                    help="Skip cases whose .pt file already exists in pass 2.")
     return p.parse_args()

@@ -65,7 +65,7 @@ def _idw_with_sdf_validation(
 ) -> tuple[np.ndarray, np.ndarray]:
     """IDW for scalar p, with a mask flagging queries whose k neighbours
     are all in the fluid (i.e. min neighbour SDF > SDF_MIN)."""
-    dists, idx = tree.query(targets, k=k, workers=-1)
+    dists, idx = tree.query(targets, k=k, workers=1)
     if k == 1:
         dists = dists[:, None]
         idx = idx[:, None]
