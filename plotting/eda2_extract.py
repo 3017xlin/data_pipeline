@@ -115,6 +115,15 @@ def _process_case(npz_path_str: str) -> list[list]:
         sdf = SDFComputer(stl_vertices, stl_faces)
         vol_sdf = sdf.signed_distance(volume_pos.astype(np.float32))
 
+        # NPZ surface_normals point inward in this dataset; align them
+        # to the SDF gradient (which is outward) so the windward / leeward
+        # filters and the inline shell deviation below all see consistent
+        # outward-pointing normals.
+        _, sdf_grad_at_surf = sdf.sdf_and_grad(surface_pos.astype(np.float32))
+        agreement = (surface_normals * sdf_grad_at_surf).sum(axis=1, keepdims=True)
+        flip = np.where(agreement >= 0.0, 1.0, -1.0)
+        surface_normals = surface_normals * flip
+
         # Side wall mask
         wall = np.abs(surface_normals[:, 2]) < 0.5
         if wall.sum() < 50:

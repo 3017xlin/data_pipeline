@@ -65,9 +65,19 @@ def _face_centers_areas_normals(verts, faces):
     return centers, areas, normals
 
 
-def _make_fake_npz(path: Path):
+def _make_fake_npz(path: Path, normal_orientation: str = "inward"):
+    """
+    Build a synthetic cube case.
+      normal_orientation = "outward" — surface_normals point outward (rare).
+      normal_orientation = "inward"  — surface_normals point inward (this is
+        what real HDB NPZs do; the transform pipeline must auto-flip them).
+    """
     verts, faces = _box_mesh(cx=0, cy=0, hx=20, hy=15, hz=40)
     centers, areas, normals = _face_centers_areas_normals(verts, faces)
+    if normal_orientation == "inward":
+        normals = -normals
+    elif normal_orientation != "outward":
+        raise ValueError(normal_orientation)
 
     # Densified surface samples: replicate each face center with small
     # tangential jitter so the wall mesh has ~100 cells, large enough to
