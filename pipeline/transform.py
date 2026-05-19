@@ -414,12 +414,25 @@ def _pass2_one(npz_path_str: str) -> tuple[str, str, str | None]:
         sdf = SDFComputer(d["stl_vertices"], d["stl_faces"])
         stl_face_normals = sdf.face_normals  # (F, 3) float32
 
+        # The NPZ `surface_normals` are exported by CFD post-processing and
+        # in this dataset point INWARD (toward the building interior). The
+        # SDF gradient at a surface point always points OUTWARD (toward
+        # increasing SDF = into the fluid domain). We align the NPZ
+        # normals to the SDF gradient direction so every downstream user
+        # (shell deviation, windward / leeward filters, decoder identity
+        # connection) sees a consistent outward-pointing normal.
+        _, sdf_grad_at_surf = sdf.sdf_and_grad(d["surface_pos"])
+        agreement = (d["surface_normals"] * sdf_grad_at_surf).sum(axis=1, keepdims=True)
+        flip = np.where(agreement >= 0.0, 1.0, -1.0).astype(np.float32)
+        surface_normals_outward = (d["surface_normals"] * flip).astype(np.float32)
+
         # 2m shell points — deviated from the CFD wall mesh centers
-        # (the points carrying real CFD ground-truth values), NOT from
-        # STL face centers. Side-wall + SDF + ground filters applied.
+        # (the points carrying real CFD ground-truth values) using the
+        # OUTWARD normals derived above. Side-wall + SDF + ground filters
+        # applied inside generate_shell_points.
         shell_pts, shell_base_idx, shell_sdf = generate_shell_points(
             base_points=d["surface_pos"],
-            base_normals=d["surface_normals"],
+            base_normals=surface_normals_outward,
             offset_m=SHELL_OFFSET_M,
             sdf=sdf,
         )
@@ -505,7 +518,7 @@ def _pass2_one(npz_path_str: str) -> tuple[str, str, str | None]:
             "stl_bbox_max": torch.from_numpy(d["stl_vertices"].max(axis=0)).float(),
             # surface (physical meters, fields z-scored)
             "surface_pos": torch.from_numpy(d["surface_pos"]).float(),
-            "surface_normals": torch.from_numpy(d["surface_normals"]).float(),
+            "surface_normals": torch.from_numpy(surface_normals_outward).float(),
             "surface_areas": torch.from_numpy(d["surface_areas"]).float(),
             "surface_fields": torch.from_numpy(surface_fields_norm).float(),
             "surface_field_names": physics.SURFACE_FIELD_NAMES,

@@ -110,6 +110,15 @@ def _process_single(npz_path_str: str) -> dict:
             rec["error"] = "divergence check"
             return rec
 
+        # Build SDF once; use its gradient to force surface_normals outward.
+        # NPZ-exported normals in this dataset point INWARD, which breaks
+        # both shell deviation and the windward/leeward filters below.
+        sdf = SDFComputer(stl_vertices, stl_faces)
+        _, sdf_grad_at_surf = sdf.sdf_and_grad(surface_pos)
+        agreement = (surface_normals * sdf_grad_at_surf).sum(axis=1, keepdims=True)
+        flip = np.where(agreement >= 0.0, 1.0, -1.0).astype(np.float32)
+        surface_normals = (surface_normals * flip).astype(np.float32)
+
         # Aerodynamic transforms
         p_surf_aero = physics.p_aero(surface_fields[:, 0], surface_pos[:, 2], U_ref)
         p_vol_aero = physics.p_aero(volume_fields[:, 3], volume_pos[:, 2], U_ref)
@@ -150,9 +159,7 @@ def _process_single(npz_path_str: str) -> dict:
             }
         )
 
-        # Shell analysis (Open3D-based SDF)
-        sdf = SDFComputer(stl_vertices, stl_faces)
-
+        # Shell analysis (SDF was built above to fix surface_normals)
         tree = build_tree(volume_pos)
         surf_tree = build_tree(surface_pos)
         _, surf_neighbour = surf_tree.query(surface_pos, k=5, workers=1)
