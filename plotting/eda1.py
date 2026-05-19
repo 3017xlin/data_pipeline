@@ -194,14 +194,29 @@ def _process_single(npz_path_str: str) -> dict:
             dist_mean = float(dists[:, 0].mean())
 
             # Map shell pts back to the closest surface point for the
-            # smoothness / correlation / W-L diagnostics
-            _, surf_idx = surf_tree.query(shell_pts, k=1, workers=-1)
+            # correlation / W-L diagnostics (cross-domain comparisons).
+            _, surf_idx = surf_tree.query(shell_pts, k=1, workers=1)
             paired_surf_p = p_surf_aero[surf_idx]
             delta = p_shell_aero - paired_surf_p
 
-            local_var = float(
-                np.mean(np.std(p_shell_aero[surf_neighbour[surf_idx][:, 1:]], axis=1))
-            )
+            # Shell smoothness: local std of SHELL pressure around each
+            # shell point's own neighbours. Must use a shell-specific
+            # KDTree — surf_neighbour indices live in surface_pos space
+            # and are NOT valid indices into p_shell_aero (different size,
+            # different filtering).
+            k_nbr = min(5, shell_pts.shape[0])
+            if k_nbr >= 2:
+                shell_tree = build_tree(shell_pts)
+                _, shell_neighbour = shell_tree.query(
+                    shell_pts, k=k_nbr, workers=1
+                )
+                if shell_neighbour.ndim == 1:
+                    shell_neighbour = shell_neighbour[:, None]
+                local_var = float(
+                    np.mean(np.std(p_shell_aero[shell_neighbour[:, 1:]], axis=1))
+                )
+            else:
+                local_var = float("nan")
 
             if len(paired_surf_p) >= 3:
                 try:

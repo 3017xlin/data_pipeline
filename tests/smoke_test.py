@@ -21,6 +21,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipeline.transform import run_pt_pipeline
+from plotting.eda1 import _process_single as eda1_process
 
 
 def _box_mesh(cx, cy, hx, hy, hz):
@@ -68,14 +69,32 @@ def _make_fake_npz(path: Path):
     verts, faces = _box_mesh(cx=0, cy=0, hx=20, hy=15, hz=40)
     centers, areas, normals = _face_centers_areas_normals(verts, faces)
 
-    # Surface samples: re-use STL centers, perturbed slightly so they
-    # aren't EXACTLY on the mesh (more realistic CFD-like output)
+    # Densified surface samples: replicate each face center with small
+    # tangential jitter so the wall mesh has ~100 cells, large enough to
+    # trigger the eda1 shell-smoothness path (which needs >=10 shell pts
+    # per offset). Each surface cell carries its parent face's normal.
     rng = np.random.default_rng(42)
-    surf_pos = centers + rng.normal(0, 0.05, centers.shape).astype(np.float32)
-    surf_normals = normals.copy()
-    surf_areas = areas.copy()
+    n_per_face = 8
+    surf_pos_list = []
+    surf_norm_list = []
+    for i in range(centers.shape[0]):
+        c = centers[i]
+        n = normals[i]
+        # Jitter in the plane perpendicular to the normal
+        e1 = np.array([1.0, 0.0, 0.0]) if abs(n[0]) < 0.9 else np.array([0.0, 1.0, 0.0])
+        t1 = e1 - n * np.dot(e1, n)
+        t1 /= np.linalg.norm(t1)
+        t2 = np.cross(n, t1)
+        offsets_2d = rng.uniform(-2.0, 2.0, (n_per_face, 2))
+        pts = c + offsets_2d[:, 0:1] * t1 + offsets_2d[:, 1:2] * t2
+        surf_pos_list.append(pts.astype(np.float32))
+        surf_norm_list.append(np.tile(n, (n_per_face, 1)).astype(np.float32))
+    surf_pos = np.concatenate(surf_pos_list, axis=0)
+    surf_normals = np.concatenate(surf_norm_list, axis=0)
+    n_surf = surf_pos.shape[0]
+    surf_areas = np.full(n_surf, float(areas.mean() / n_per_face), dtype=np.float32)
     # surface_fields = [p (kinematic m²/s²), wss_x, wss_y, wss_z]
-    surf_fields = rng.normal(0, 5, (centers.shape[0], 4)).astype(np.float32)
+    surf_fields = rng.normal(0, 5, (n_surf, 4)).astype(np.float32)
 
     # Volume: random points in the cut box, but biased away from the cube
     n_vol = 5000
@@ -222,6 +241,24 @@ def main():
     for f in ["norm_stats.json", "all_case_stats.json",
               "diverged_cases.json", "anomaly_cases.json"]:
         assert (out_dir / f).exists(), f"missing {f}"
+
+    # eda1 must exercise the smoothness path without crashing or
+    # silently early-exiting. We need >=10 shell points per offset.
+    npz_files = sorted(data_dir.glob("*.npz"))
+    eda_rec = eda1_process(str(npz_files[0]))
+    assert not eda_rec.get("diverged"), f"eda1 case diverged: {eda_rec.get('error')}"
+    for off in (0.5, 2.0, 3.0):
+        n_valid = eda_rec[f"shell_{off}m_n_valid"]
+        assert n_valid >= 10, (
+            f"smoke test must trigger the smoothness path, "
+            f"but shell_{off}m_n_valid={n_valid} < 10. "
+            f"Densify the synthetic surface mesh."
+        )
+        sm = eda_rec[f"shell_{off}m_smoothness"]
+        assert np.isfinite(sm), (
+            f"shell_{off}m_smoothness should be finite after the fix, "
+            f"got {sm} (n_valid={n_valid}). The indexing bug regressed."
+        )
 
     print("OK: all assertions passed.")
     print(f"  N_volume_total = {N}")
