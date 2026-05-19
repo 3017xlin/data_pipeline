@@ -41,7 +41,14 @@ X_BINS = 10
 OFFSETS = [0.5, 2.0, 3.0]
 IDW_K_BY_OFFSET = {0.5: 4, 2.0: 8, 3.0: 4}
 EPS = 1e-10
-SDF_MIN = 0.1  # neighbouring volume cell must be at least this far from surface
+# A volume neighbour with SDF < SDF_MIN_M is treated as "inside a wall"
+# and disqualifies its shell point. The original value (0.1 m) was a
+# defensive workaround for the now-fixed inward-normal bug — it also
+# rejected legitimate CFD boundary-layer cells (y+ first layer often
+# sits 0.05-0.3 m off the wall, well within the old 0.1 m gate).
+# With normals corrected, all valid CFD volume cells have SDF >= 0 by
+# construction, so 0.0 is the right "sanity-check" floor.
+SDF_MIN_M = 0.0
 
 
 def _bbox_cut(volume_pos: np.ndarray, volume_fields: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -64,7 +71,7 @@ def _idw_with_sdf_validation(
     k: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """IDW for scalar p, with a mask flagging queries whose k neighbours
-    are all in the fluid (i.e. min neighbour SDF > SDF_MIN)."""
+    are all in the fluid (i.e. min neighbour SDF > SDF_MIN_M)."""
     dists, idx = tree.query(targets, k=k, workers=1)
     if k == 1:
         dists = dists[:, None]
@@ -73,7 +80,7 @@ def _idw_with_sdf_validation(
     w = 1.0 / safe
     w /= w.sum(axis=1, keepdims=True)
     p = (p_vol[idx] * w).sum(axis=1)
-    valid = np.all(vol_sdf[idx] > SDF_MIN, axis=1)
+    valid = np.all(vol_sdf[idx] > SDF_MIN_M, axis=1)
     return p, valid
 
 
