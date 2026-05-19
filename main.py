@@ -20,6 +20,7 @@ Example:
 from __future__ import annotations
 
 import argparse
+import multiprocessing as mp
 import os
 import sys
 from multiprocessing import cpu_count
@@ -89,4 +90,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Open3D 0.19 initialises an internal threadpool at import time. The
+    # Linux default `fork` start method copies the parent's address space
+    # without the threads, leaving inherited mutexes locked → every child
+    # worker deadlocks in S state at first SDF call. `spawn` starts each
+    # worker from a clean interpreter so it does its own Open3D import.
+    # Cost: a few seconds of extra startup per worker; that's it.
+    mp.set_start_method("spawn", force=True)
     main()
