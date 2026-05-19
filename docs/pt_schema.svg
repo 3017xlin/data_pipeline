@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 760" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="gMeta" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#ECEFF1"/><stop offset="1" stop-color="#CFD8DC"/>
+    </linearGradient>
+    <linearGradient id="gSTL" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#E8F5E9"/><stop offset="1" stop-color="#C8E6C9"/>
+    </linearGradient>
+    <linearGradient id="gSurf" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#FFF8E1"/><stop offset="1" stop-color="#FFECB3"/>
+    </linearGradient>
+    <linearGradient id="gVol" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#FFEBEE"/><stop offset="1" stop-color="#FFCDD2"/>
+    </linearGradient>
+    <linearGradient id="gGrid" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#E3F2FD"/><stop offset="1" stop-color="#BBDEFB"/>
+    </linearGradient>
+  </defs>
+
+  <text x="490" y="32" text-anchor="middle" font-size="22" font-weight="700" fill="#222">PT Schema — &lt;case&gt;.pt  (schema = "hdb-3d-v1", 34 keys)</text>
+  <text x="490" y="54" text-anchor="middle" font-size="12" fill="#555">V = stl_vertices · F = stl_faces · S = surface cells · N = cut volume cells · M = shell cells · Ntot = N + M</text>
+
+  <!-- Metadata + Constants -->
+  <rect x="40" y="80" width="900" height="100" rx="8" fill="url(#gMeta)" stroke="#546E7A" stroke-width="1.5"/>
+  <text x="60" y="104" font-size="14" font-weight="700" fill="#263238">① Metadata &amp; Per-Case Constants  (9 keys)</text>
+  <text x="60" y="128" font-size="12" font-family="monospace">schema: str             case_name: str          is_diverged: bool       is_anomaly: bool</text>
+  <text x="60" y="148" font-size="12" font-family="monospace">U_ref: float            rho: float              L_scale: float          z_max_building: float</text>
+  <text x="60" y="168" font-size="12" font-family="monospace">global_params: Tensor(2,) float32   ← raw global_params_values from NPZ</text>
+
+  <!-- STL Geometry -->
+  <rect x="40" y="195" width="900" height="130" rx="8" fill="url(#gSTL)" stroke="#388E3C" stroke-width="1.5"/>
+  <text x="60" y="219" font-size="14" font-weight="700" fill="#1B5E20">② STL Geometry — physical meters, never normalised  (8 keys)</text>
+  <text x="60" y="243" font-size="12" font-family="monospace">stl_vertices: float32 (V, 3)            stl_faces: int64 (F, 3)</text>
+  <text x="60" y="263" font-size="12" font-family="monospace">stl_centers:  float32 (F, 3)            stl_areas: float32 (F,)</text>
+  <text x="60" y="283" font-size="12" font-family="monospace">stl_face_normals: float32 (F, 3)        stl_centroid: float32 (3,)</text>
+  <text x="60" y="303" font-size="12" font-family="monospace">stl_bbox_min: float32 (3,)              stl_bbox_max: float32 (3,)</text>
+
+  <!-- Surface -->
+  <rect x="40" y="340" width="900" height="110" rx="8" fill="url(#gSurf)" stroke="#F57F17" stroke-width="1.5"/>
+  <text x="60" y="364" font-size="14" font-weight="700" fill="#E65100">③ Surface Fields — geometry in metres, fields z-scored  (5 keys)</text>
+  <text x="60" y="388" font-size="12" font-family="monospace">surface_pos:     float32 (S, 3)         surface_normals: float32 (S, 3)</text>
+  <text x="60" y="408" font-size="12" font-family="monospace">surface_areas:   float32 (S,)           surface_fields:  float32 (S, 4)   ← z-scored</text>
+  <text x="60" y="428" font-size="12" font-family="monospace">surface_field_names: ["p_aero", "wss_x", "wss_y", "wss_z"]</text>
+
+  <!-- Volume -->
+  <rect x="40" y="465" width="900" height="160" rx="8" fill="url(#gVol)" stroke="#C62828" stroke-width="1.5"/>
+  <text x="60" y="489" font-size="14" font-weight="700" fill="#B71C1C">④ Volume Fields — cut volume ⊕ 2 m shell  (8 keys)</text>
+  <text x="60" y="513" font-size="12" font-family="monospace">volume_pos:        float32 (Ntot, 3)    volume_fields:     float32 (Ntot, 5)  ← z-scored</text>
+  <text x="60" y="533" font-size="12" font-family="monospace">volume_field_names: ["Ux", "Uy_residual", "Uz", "p_aero", "log_nut"]</text>
+  <text x="60" y="553" font-size="12" font-family="monospace">volume_sdf:        float32 (Ntot,)      ← signed metres, +outside / −inside</text>
+  <text x="60" y="573" font-size="12" font-family="monospace">volume_sdf_grad:   float32 (Ntot, 3)    ← unit vector, points toward increasing SDF</text>
+  <text x="60" y="593" font-size="12" font-family="monospace">is_shell_point:    bool    (Ntot,)      ← first N rows False, last M rows True</text>
+  <text x="60" y="613" font-size="12" font-family="monospace">volume_bbox_min: float32 (3,) = (-550,-550, 0)   volume_bbox_max = (550, 550, 160)</text>
+
+  <!-- Grid -->
+  <rect x="40" y="640" width="900" height="100" rx="8" fill="url(#gGrid)" stroke="#1565C0" stroke-width="1.5"/>
+  <text x="60" y="664" font-size="14" font-weight="700" fill="#0D47A1">⑤ Latent Grid — fixed for every case, 128 × 128 × 32 = 524,288 voxels  (7 keys)</text>
+  <text x="60" y="688" font-size="12" font-family="monospace">grid_sdf:      float32 (524288,)        grid_sdf_grad: float32 (524288, 3)</text>
+  <text x="60" y="708" font-size="12" font-family="monospace">grid_size: (128,128,32)  grid_x_range/y_range: (-550, 550)  grid_z_range: (0, 160)</text>
+  <text x="60" y="728" font-size="12" font-family="monospace">grid_indexing: "ij_zyx"   ← reshape(flat, (Nz, Ny, Nx)) matches conv3d (B,C,Z,Y,X)</text>
+</svg>
